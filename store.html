@@ -50,8 +50,8 @@
                         <h2 class="text-sm font-bold text-slate-700 flex items-center gap-2">
                             <i class="fa-solid fa-barcode text-indigo-600"></i> สแกนหรือเลือกสินค้าลงตะกร้า
                         </h2>
-                        <button onclick="openScanner()" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs px-3 py-1.5 rounded-xl font-medium transition flex items-center gap-1.5">
-                            <i class="fa-solid fa-camera"></i> เปิดกล้องสแกนบาร์โค้ด
+                        <button onclick="openScanner('pos')" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs px-3 py-1.5 rounded-xl font-medium transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-camera"></i> เปิดกล้องสแกนขาย
                         </button>
                     </div>
                     <div id="posProductGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4 max-h-[380px] overflow-y-auto pr-1"></div>
@@ -87,13 +87,18 @@
     <!-- 2. TAB: INVENTORY -->
     <div id="tabContent-inventory" class="hidden space-y-6">
         <div class="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200">
-            <h2 class="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2">
-                <i class="fa-solid fa-box-archive text-indigo-600"></i> เพิ่มสินค้าใหม่ / นำสินค้าเข้าสต็อก (FIFO)
-            </h2>
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-base font-semibold text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-box-archive text-indigo-600"></i> เพิ่มสินค้าใหม่ / นำสินค้าเข้าสต็อก (FIFO)
+                </h2>
+                <button onclick="openScanner('inv')" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs px-3 py-1.5 rounded-xl font-medium transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-camera"></i> สแกนบาร์โค้ดรับเข้า
+                </button>
+            </div>
             <form onsubmit="addInventoryBatch(event)" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
                 <div>
                     <label class="block text-xs font-medium text-slate-600 mb-1">รหัสบาร์โค้ด</label>
-                    <input type="text" id="invBarcode" placeholder="เช่น 885001" required class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm outline-none">
+                    <input type="text" id="invBarcode" oninput="checkExistingBarcode(this.value)" placeholder="เช่น 885001" required class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm outline-none">
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-slate-600 mb-1">ชื่อสินค้า</label>
@@ -204,7 +209,7 @@
 
 <div id="scannerModal" class="fixed inset-0 bg-slate-900/65 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
     <div class="bg-white rounded-2xl max-w-md w-full p-5 text-center shadow-2xl space-y-4">
-        <h3 class="text-base font-bold text-slate-800">สแกนบาร์โค้ดสินค้า</h3>
+        <h3 id="scannerTitle" class="text-base font-bold text-slate-800">สแกนบาร์โค้ด</h3>
         <div class="relative w-full aspect-square bg-black rounded-xl overflow-hidden flex items-center justify-center">
             <video id="videoPreview" class="w-full h-full object-cover"></video>
         </div>
@@ -237,6 +242,7 @@
     let sales = [];
     let extraExpenses = [];
     let codeReader = null;
+    let scannerMode = 'pos'; // 'pos' หรือ 'inv'
 
     async function loadData() {
         try {
@@ -292,6 +298,17 @@
         document.getElementById(`tabContent-${tab}`).classList.remove('hidden');
         document.getElementById(`tabBtn-${tab}`).className = "px-4 py-2 rounded-lg transition bg-white text-indigo-700 shadow-sm";
     }
+
+    // ฟังก์ชันเช็คว่ามีบาร์โค้ดนี้อยู่แล้วไหม ถ้ามี ดึงชื่อและราคาขายมาเติมให้ทันที
+    window.checkExistingBarcode = function(barcode) {
+        if (!barcode) return;
+        const found = inventory.find(i => i.barcode === barcode.trim());
+        if (found) {
+            document.getElementById('invName').value = found.name;
+            document.getElementById('invPrice').value = found.price;
+            document.getElementById('invCost').value = found.cost; // เติมต้นทุนรอบล่าสุดให้เป็นแนวทางด้วย
+        }
+    };
 
     window.addInventoryBatch = async function(e) {
         e.preventDefault();
@@ -534,14 +551,24 @@
         });
     }
 
-    window.openScanner = function() {
+    window.openScanner = function(mode) {
+        scannerMode = mode;
+        document.getElementById('scannerTitle.innerText') = mode === 'pos' ? '스แกนบาร์โค้ดขายสินค้า' : 'สแกนบาร์โค้ดรับเข้าสต็อก';
         document.getElementById('scannerModal').classList.remove('hidden');
         document.getElementById('scannerModal').classList.add('flex');
+        
         codeReader = new ZXing.BrowserBarcodeReader();
         codeReader.decodeFromVideoDevice(null, 'videoPreview', (result, err) => {
             if (result) {
+                const code = result.text;
                 closeScanner();
-                addToCart(result.text);
+                if (scannerMode === 'pos') {
+                    addToCart(code);
+                } else {
+                    document.getElementById('invBarcode').value = code;
+                    checkExistingBarcode(code);
+                    switchTab('inventory');
+                }
             }
         }).catch(e => console.error(e));
     };

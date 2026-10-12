@@ -10,6 +10,24 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- ZXing Barcode Scanner -->
     <script src="https://unpkg.com/@zxing/library@latest"></script>
+    <style>
+        /* เส้นยิงบาร์โค้ดสีแดงขยับลงมา */
+        @keyframes scan {
+            0% { top: 10%; }
+            50% { top: 85%; }
+            100% { top: 10%; }
+        }
+        .laser-line {
+            position: absolute;
+            left: 5%;
+            width: 90%;
+            height: 3px;
+            background-color: #ef4444;
+            box-shadow: 0 0 8px #ef4444;
+            animation: scan 2s infinite ease-in-out;
+            z-index: 20;
+        }
+    </style>
 </head>
 <body class="bg-slate-100 min-h-screen text-slate-800 pb-20">
 
@@ -42,9 +60,11 @@
         <!-- TAB 1: POS (หน้าขายสินค้า) -->
         <section id="section-pos" class="space-y-4">
             <!-- Camera Scanner Area -->
-            <div id="pos-scanner-container" class="hidden bg-black rounded-lg overflow-hidden relative shadow-md">
-                <video id="pos-video" class="w-full h-48 object-cover" autoplay playsinline muted></video>
-                <button onclick="stopPosScanner()" class="absolute top-2 right-2 bg-red-600 text-white px-3 py-1 rounded-full text-xs shadow z-10">
+            <div id="pos-scanner-container" class="hidden bg-black rounded-lg overflow-hidden relative shadow-md h-56 border-2 border-indigo-500">
+                <video id="pos-video" class="w-full h-full object-cover" autoplay playsinline muted></video>
+                <div class="laser-line"></div>
+                <div class="absolute inset-0 border-2 border-dashed border-white/50 m-4 rounded pointer-events-none"></div>
+                <button onclick="stopPosScanner()" class="absolute top-2 right-2 bg-red-600 text-white px-3 py-1 rounded-full text-xs shadow z-30">
                     ปิดกล้อง
                 </button>
             </div>
@@ -84,9 +104,11 @@
 
         <!-- TAB 2: STOCK (หน้าเพิ่มสต็อก) -->
         <section id="section-stock" class="space-y-4 hidden">
-            <div id="stock-scanner-container" class="hidden bg-black rounded-lg overflow-hidden relative shadow-md">
-                <video id="stock-video" class="w-full h-48 object-cover" autoplay playsinline muted></video>
-                <button onclick="stopStockScanner()" class="absolute top-2 right-2 bg-red-600 text-white px-3 py-1 rounded-full text-xs shadow z-10">
+            <div id="stock-scanner-container" class="hidden bg-black rounded-lg overflow-hidden relative shadow-md h-56 border-2 border-indigo-500">
+                <video id="stock-video" class="w-full h-full object-cover" autoplay playsinline muted></video>
+                <div class="laser-line"></div>
+                <div class="absolute inset-0 border-2 border-dashed border-white/50 m-4 rounded pointer-events-none"></div>
+                <button onclick="stopStockScanner()" class="absolute top-2 right-2 bg-red-600 text-white px-3 py-1 rounded-full text-xs shadow z-30">
                     ปิดกล้อง
                 </button>
             </div>
@@ -152,21 +174,18 @@
     </main>
 
     <script>
-        // Global App State
         let inventory = JSON.parse(localStorage.getItem('fifo_inventory')) || [];
         let salesHistory = JSON.parse(localStorage.getItem('fifo_sales')) || [];
         let cart = [];
         let codeReader = null;
         let activeStream = null;
 
-        // Save State
         function saveData() {
             localStorage.setItem('fifo_inventory', JSON.stringify(inventory));
             localStorage.setItem('fifo_sales', JSON.stringify(salesHistory));
             renderInventory();
         }
 
-        // Tab Switching Logic
         function switchTab(tab) {
             document.querySelectorAll('main > section').forEach(s => s.classList.add('hidden'));
             document.getElementById(`section-${tab}`).classList.remove('hidden');
@@ -182,11 +201,9 @@
 
             if (tab === 'stock') renderInventory();
             if (tab === 'history') renderHistory();
-            stopPosScanner();
-            stopStockScanner();
+            stopAllScanners();
         }
 
-        // Check Existing Product Info by Barcode
         function checkExistingBarcode(barcode) {
             const existing = inventory.find(i => i.barcode === barcode);
             if (existing) {
@@ -195,7 +212,6 @@
             }
         }
 
-        // Stock Entry (FIFO - Append new batch)
         function saveStock(e) {
             e.preventDefault();
             const barcode = document.getElementById('stock-barcode').value.trim();
@@ -217,7 +233,6 @@
             alert('เพิ่มสต็อกเรียบร้อยแล้ว!');
         }
 
-        // Render Current Inventory
         function renderInventory() {
             const list = document.getElementById('inventory-list');
             if (inventory.length === 0) {
@@ -246,7 +261,6 @@
             `).join('');
         }
 
-        // Add Item to Cart
         function addPosItem() {
             const barcodeInput = document.getElementById('pos-barcode');
             const barcode = barcodeInput.value.trim();
@@ -284,7 +298,6 @@
             renderCart();
         }
 
-        // Render Cart
         function renderCart() {
             const list = document.getElementById('cart-list');
             const totalEl = document.getElementById('cart-total');
@@ -328,7 +341,6 @@
             renderCart();
         }
 
-        // FIFO Checkout Logic
         function checkout() {
             if (cart.length === 0) {
                 alert('โปรดเลือกสินค้าลงตะกร้าก่อน!');
@@ -367,7 +379,6 @@
             alert('ชำระเงินและตัดสต็อกเรียบร้อยแล้ว!');
         }
 
-        // Render History
         function renderHistory() {
             const list = document.getElementById('history-list');
             if (salesHistory.length === 0) {
@@ -389,12 +400,21 @@
             `).join('');
         }
 
-        // Barcode Scanner Controls (Fixed with modern API)
+        // Barcode Scanner Logic with Resolution Optimizations
         function startScanner(videoId, containerId, onDetected) {
+            stopAllScanners();
             document.getElementById(containerId).classList.remove('hidden');
             codeReader = new ZXing.BrowserMultiFormatReader();
-            
-            navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+
+            const constraints = {
+                video: {
+                    facingMode: "environment",
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                }
+            };
+
+            navigator.mediaDevices.getUserMedia(constraints)
                 .then(stream => {
                     activeStream = stream;
                     const videoElement = document.getElementById(videoId);
@@ -409,7 +429,7 @@
                     });
                 })
                 .catch(err => {
-                    alert('ไม่สามารถเปิดกล้องได้ กรุณาตรวจสอบสิทธิ์การใช้งานกล้องในเบราว์เซอร์: ' + err);
+                    alert('ไม่สามารถเปิดกล้องได้: ' + err);
                     document.getElementById(containerId).classList.add('hidden');
                 });
         }
@@ -428,7 +448,6 @@
         }
 
         function startPosScanner() {
-            stopAllScanners();
             startScanner('pos-video', 'pos-scanner-container', (text) => {
                 document.getElementById('pos-barcode').value = text;
                 addPosItem();
@@ -440,7 +459,6 @@
         }
 
         function startStockScanner() {
-            stopAllScanners();
             startScanner('stock-video', 'stock-scanner-container', (text) => {
                 document.getElementById('stock-barcode').value = text;
                 checkExistingBarcode(text);

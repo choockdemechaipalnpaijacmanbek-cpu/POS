@@ -8,7 +8,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Html5-Qrcode Library (สแกนบาร์โค้ดมือถือเสถียรที่สุด) -->
+    <!-- Html5-Qrcode Library -->
     <script src="https://unpkg.com/html5-qrcode"></script>
 </head>
 <body class="bg-slate-100 min-h-screen text-slate-800 pb-20">
@@ -24,15 +24,15 @@
             </button>
         </div>
         <!-- Tab Menu -->
-        <div class="flex border-t border-indigo-500 bg-indigo-700">
+        <div class="flex border-t border-indigo-500 bg-indigo-700 text-xs sm:text-sm">
             <button onclick="switchTab('pos')" id="tab-pos" class="flex-1 py-2 text-center font-medium border-b-4 border-white text-white">
-                <i class="fa-solid fa-cart-shopping"></i> ขายสินค้า (POS)
+                <i class="fa-solid fa-cart-shopping"></i> ขายสินค้า
             </button>
             <button onclick="switchTab('stock')" id="tab-stock" class="flex-1 py-2 text-center font-medium border-b-4 border-transparent text-indigo-200 hover:text-white">
-                <i class="fa-solid fa-boxes-stacked"></i> รับเข้าสต็อก
+                <i class="fa-solid fa-boxes-stacked"></i> รับสต็อก
             </button>
-            <button onclick="switchTab('history')" id="tab-history" class="flex-1 py-2 text-center font-medium border-b-4 border-transparent text-indigo-200 hover:text-white">
-                <i class="fa-solid fa-receipt"></i> ประวัติขาย
+            <button onclick="switchTab('profit')" id="tab-profit" class="flex-1 py-2 text-center font-medium border-b-4 border-transparent text-indigo-200 hover:text-white">
+                <i class="fa-solid fa-chart-line"></i> สรุปกำไร
             </button>
         </div>
     </header>
@@ -41,7 +41,6 @@
 
         <!-- TAB 1: POS (หน้าขายสินค้า) -->
         <section id="section-pos" class="space-y-4">
-            <!-- Camera Scanner Area -->
             <div id="pos-scanner-container" class="hidden bg-black rounded-lg overflow-hidden relative shadow-md mb-2">
                 <div id="pos-reader" class="w-full"></div>
                 <button onclick="stopPosScanner()" class="absolute top-2 right-2 bg-red-600 text-white px-3 py-1 rounded-full text-xs shadow z-50">
@@ -49,7 +48,6 @@
                 </button>
             </div>
 
-            <!-- Manual / Scanner Input -->
             <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex gap-2">
                 <input type="text" id="pos-barcode" placeholder="ยิงหรือพิมพ์บาร์โค้ด..." 
                     class="flex-1 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none">
@@ -61,11 +59,10 @@
                 </button>
             </div>
 
-            <!-- Cart Table -->
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                 <div class="p-3 bg-slate-50 border-b border-slate-200 font-bold text-slate-700 flex justify-between items-center">
-                    <span>รายการสั่งซื้อ</span>
-                    <button onclick="clearCart()" class="text-xs text-red-500 hover:underline">ล้างตระกร้า</button>
+                    <span>รายการสั่งซื้อในตะกร้า</span>
+                    <button onclick="clearCart()" class="text-xs text-red-500 hover:underline">ล้างตะกร้า</button>
                 </div>
                 <div id="cart-list" class="divide-y divide-slate-100 max-h-60 overflow-y-auto">
                     <p class="text-center text-slate-400 py-6">ยังไม่มีสินค้าในตะกร้า</p>
@@ -92,12 +89,12 @@
             </div>
 
             <form id="stock-form" onsubmit="saveStock(event)" class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
-                <h2 class="font-bold text-slate-700 border-b pb-2">รับสินค้าเข้าสต็อก</h2>
+                <h2 class="font-bold text-slate-700 border-b pb-2">รับสินค้าเข้าสต็อก (ระบบ FIFO)</h2>
                 
                 <div>
-                    <label class="text-xs text-slate-500 font-semibold">บาร์โค้ด</label>
+                    <label class="text-xs text-slate-500 font-semibold">รหัสบาร์โค้ด</label>
                     <div class="flex gap-2 mt-1">
-                        <input type="text" id="stock-barcode" required onchange="checkExistingBarcode(this.value)"
+                        <input type="text" id="stock-barcode" required onchange="checkExistingBarcode(this.value)" placeholder="เช่น 885001..."
                             class="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
                         <button type="button" onclick="startStockScanner()" class="bg-slate-700 text-white px-3 py-2 rounded-lg text-sm">
                             <i class="fa-solid fa-camera"></i>
@@ -107,44 +104,60 @@
 
                 <div>
                     <label class="text-xs text-slate-500 font-semibold">ชื่อสินค้า</label>
-                    <input type="text" id="stock-name" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm mt-1 focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <input type="text" id="stock-name" required placeholder="เช่น น้ำดื่ม..." class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm mt-1 focus:ring-2 focus:ring-indigo-500 outline-none">
                 </div>
 
-                <div class="grid grid-cols-2 gap-2">
+                <div class="grid grid-cols-3 gap-2">
                     <div>
-                        <label class="text-xs text-slate-500 font-semibold">จำนวนที่รับเข้า</label>
-                        <input type="number" id="stock-qty" min="1" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm mt-1 focus:ring-2 focus:ring-indigo-500 outline-none">
+                        <label class="text-xs text-slate-500 font-semibold">จำนวนรับ</label>
+                        <input type="number" id="stock-qty" min="1" required placeholder="0" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm mt-1 focus:ring-2 focus:ring-indigo-500 outline-none">
                     </div>
                     <div>
-                        <label class="text-xs text-slate-500 font-semibold">ราคาขาย/ชิ้น (บาท)</label>
-                        <input type="number" step="0.01" id="stock-price" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm mt-1 focus:ring-2 focus:ring-indigo-500 outline-none">
+                        <label class="text-xs text-slate-500 font-semibold">ทุน/หน่วย</label>
+                        <input type="number" step="0.01" id="stock-cost" min="0" required placeholder="0.00" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm mt-1 focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-500 font-semibold">ขาย/หน่วย</label>
+                        <input type="number" step="0.01" id="stock-price" min="0" required placeholder="0.00" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm mt-1 focus:ring-2 focus:ring-indigo-500 outline-none">
                     </div>
                 </div>
 
                 <button type="submit" class="w-full bg-indigo-600 text-white py-2.5 rounded-lg font-bold hover:bg-indigo-700 transition">
-                    บันทึกเข้าสต็อก
+                    บันทึกรับเข้าสต็อก
                 </button>
             </form>
 
-            <!-- Current Inventory Overview -->
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                 <div class="p-3 bg-slate-50 border-b border-slate-200 font-bold text-slate-700">
-                    สต็อกสินค้าปัจจุบัน
+                    สต็อกสินค้าคงเหลือ (แยกตามล็อต FIFO)
                 </div>
                 <div id="inventory-list" class="divide-y divide-slate-100 max-h-60 overflow-y-auto p-2">
-                    <!-- Dynamic Items -->
+                    <!-- Dynamic Inventory -->
                 </div>
             </div>
         </section>
 
-        <!-- TAB 3: HISTORY (ประวัติการขาย) -->
-        <section id="section-history" class="space-y-4 hidden">
+        <!-- TAB 3: PROFIT & HISTORY (สรุปกำไรและประวัติ) -->
+        <section id="section-profit" class="space-y-4 hidden">
+            <!-- Summary Cards -->
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-white p-3 rounded-xl shadow-sm border border-slate-200 text-center">
+                    <div class="text-xs text-slate-400 font-medium">ยอดขายรวมทั้งหมด</div>
+                    <div id="total-sales-amount" class="text-lg font-bold text-indigo-600 mt-1">0.00 ฿</div>
+                </div>
+                <div class="bg-white p-3 rounded-xl shadow-sm border border-slate-200 text-center">
+                    <div class="text-xs text-slate-400 font-medium">กำไรสุทธิรวม</div>
+                    <div id="total-profit-amount" class="text-lg font-bold text-emerald-600 mt-1">0.00 ฿</div>
+                </div>
+            </div>
+
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <div class="p-3 bg-slate-50 border-b border-slate-200 font-bold text-slate-700">
-                    ประวัติรายการขาย
+                <div class="p-3 bg-slate-50 border-b border-slate-200 font-bold text-slate-700 flex justify-between items-center">
+                    <span>ประวัติการขายและกำไร</span>
+                    <button onclick="clearHistory()" class="text-xs text-red-500 hover:underline">ล้างประวัติ</button>
                 </div>
                 <div id="history-list" class="divide-y divide-slate-100 max-h-96 overflow-y-auto p-2">
-                    <!-- Dynamic Sales History -->
+                    <p class="text-center text-slate-400 py-6">ยังไม่มีประวัติการขาย</p>
                 </div>
             </div>
         </section>
@@ -168,7 +181,7 @@
             document.querySelectorAll('main > section').forEach(s => s.classList.add('hidden'));
             document.getElementById(`section-${tab}`).classList.remove('hidden');
             
-            ['pos', 'stock', 'history'].forEach(t => {
+            ['pos', 'stock', 'profit'].forEach(t => {
                 const btn = document.getElementById(`tab-${t}`);
                 if (t === tab) {
                     btn.className = "flex-1 py-2 text-center font-medium border-b-4 border-white text-white";
@@ -178,7 +191,7 @@
             });
 
             if (tab === 'stock') renderInventory();
-            if (tab === 'history') renderHistory();
+            if (tab === 'profit') renderProfitAndHistory();
             stopAllScanners();
         }
 
@@ -186,6 +199,7 @@
             const existing = inventory.find(i => i.barcode === barcode);
             if (existing) {
                 document.getElementById('stock-name').value = existing.name;
+                document.getElementById('stock-cost').value = existing.cost;
                 document.getElementById('stock-price').value = existing.price;
             }
         }
@@ -195,6 +209,7 @@
             const barcode = document.getElementById('stock-barcode').value.trim();
             const name = document.getElementById('stock-name').value.trim();
             const qty = parseInt(document.getElementById('stock-qty').value);
+            const cost = parseFloat(document.getElementById('stock-cost').value);
             const price = parseFloat(document.getElementById('stock-price').value);
 
             inventory.push({
@@ -202,13 +217,14 @@
                 barcode,
                 name,
                 qty,
+                cost,
                 price,
                 date: new Date().toISOString()
             });
 
             saveData();
             document.getElementById('stock-form').reset();
-            alert('เพิ่มสต็อกเรียบร้อยแล้ว!');
+            alert('เพิ่มสินค้าเข้าสต็อกสำเร็จ!');
         }
 
         function renderInventory() {
@@ -218,22 +234,14 @@
                 return;
             }
 
-            const aggregated = {};
-            inventory.forEach(item => {
-                if (!aggregated[item.barcode]) {
-                    aggregated[item.barcode] = { name: item.name, totalQty: 0, price: item.price };
-                }
-                aggregated[item.barcode].totalQty += item.qty;
-            });
-
-            list.innerHTML = Object.keys(aggregated).map(code => `
+            list.innerHTML = inventory.map(item => `
                 <div class="p-3 flex justify-between items-center text-sm">
                     <div>
-                        <div class="font-bold text-slate-800">${aggregated[code].name}</div>
-                        <div class="text-xs text-slate-400">รหัส: ${code} | ราคา: ${aggregated[code].price} ฿</div>
+                        <div class="font-bold text-slate-800">${item.name}</div>
+                        <div class="text-xs text-slate-400">รหัส: ${item.barcode} | ทุน: ${item.cost}฿ | ขาย: ${item.price}฿</div>
                     </div>
                     <span class="bg-indigo-100 text-indigo-800 font-bold px-2.5 py-1 rounded-full text-xs">
-                        เหลือ ${aggregated[code].totalQty} ชิ้น
+                        เหลือ ${item.qty} ชิ้น
                     </span>
                 </div>
             `).join('');
@@ -319,66 +327,108 @@
             renderCart();
         }
 
+        // FIFO Checkout & Cost/Profit Calculation
         function checkout() {
             if (cart.length === 0) {
                 alert('โปรดเลือกสินค้าลงตะกร้าก่อน!');
                 return;
             }
 
+            let totalSale = 0;
+            let totalCost = 0;
+            let soldItemsDetail = [];
+
             cart.forEach(cartItem => {
                 let remainingToDeduct = cartItem.qty;
+                let itemSale = cartItem.price * cartItem.qty;
+                totalSale += itemSale;
 
                 for (let i = 0; i < inventory.length; i++) {
                     if (inventory[i].barcode === cartItem.barcode && inventory[i].qty > 0) {
-                        if (inventory[i].qty >= remainingToDeduct) {
-                            inventory[i].qty -= remainingToDeduct;
-                            remainingToDeduct = 0;
-                            break;
-                        } else {
-                            remainingToDeduct -= inventory[i].qty;
-                            inventory[i].qty = 0;
-                        }
+                        let deductQty = Math.min(inventory[i].qty, remainingToDeduct);
+                        totalCost += inventory[i].cost * deductQty;
+                        
+                        inventory[i].qty -= deductQty;
+                        remainingToDeduct -= deductQty;
+
+                        if (remainingToDeduct === 0) break;
                     }
                 }
+
+                soldItemsDetail.push({
+                    name: cartItem.name,
+                    qty: cartItem.qty,
+                    price: cartItem.price
+                });
             });
 
+            // Clean up 0 quantity stock
             inventory = inventory.filter(i => i.qty > 0);
+
+            const totalProfit = totalSale - totalCost;
 
             const transaction = {
                 id: Date.now(),
-                items: [...cart],
-                total: cart.reduce((sum, item) => sum + (item.price * item.qty), 0),
+                items: soldItemsDetail,
+                totalSale,
+                totalCost,
+                totalProfit,
                 date: new Date().toLocaleString('th-TH')
             };
-            salesHistory.unshift(transaction);
 
+            salesHistory.unshift(transaction);
             saveData();
             clearCart();
-            alert('ชำระเงินและตัดสต็อกเรียบร้อยแล้ว!');
+            alert(`ชำระเงินสำเร็จ!\nยอดขาย: ${totalSale.toFixed(2)} ฿\nกำไรสุทธิ: ${totalProfit.toFixed(2)} ฿`);
         }
 
-        function renderHistory() {
+        function renderProfitAndHistory() {
             const list = document.getElementById('history-list');
+            const totalSalesEl = document.getElementById('total-sales-amount');
+            const totalProfitEl = document.getElementById('total-profit-amount');
+
+            let sumSales = 0;
+            let sumProfit = 0;
+
+            salesHistory.forEach(h => {
+                sumSales += h.totalSale || 0;
+                sumProfit += h.totalProfit || 0;
+            });
+
+            totalSalesEl.textContent = `${sumSales.toFixed(2)} ฿`;
+            totalProfitEl.textContent = `${sumProfit.toFixed(2)} ฿`;
+
             if (salesHistory.length === 0) {
-                list.innerHTML = '<p class="text-center text-slate-400 py-4">ไม่มีประวัติการขาย</p>';
+                list.innerHTML = '<p class="text-center text-slate-400 py-6">ยังไม่มีประวัติการขาย</p>';
                 return;
             }
 
             list.innerHTML = salesHistory.map(h => `
                 <div class="p-3 text-sm space-y-1">
                     <div class="flex justify-between font-bold text-slate-700">
-                        <span>รายการ #${h.id.toString().slice(-6)}</span>
-                        <span class="text-emerald-600">${h.total.toFixed(2)} ฿</span>
+                        <span>ใบเสร็จ #${h.id.toString().slice(-6)}</span>
+                        <span class="text-emerald-600">กำไร +${(h.totalProfit || 0).toFixed(2)} ฿</span>
                     </div>
-                    <div class="text-xs text-slate-400">${h.date}</div>
-                    <div class="text-xs text-slate-600">
-                        ${h.items.map(i => `${i.name} (${i.qty})`).join(', ')}
+                    <div class="text-xs text-slate-400 flex justify-between">
+                        <span>${h.date}</span>
+                        <span class="text-indigo-600 font-semibold">ยอดขาย: ${(h.totalSale || 0).toFixed(2)} ฿</span>
+                    </div>
+                    <div class="text-xs text-slate-600 pt-1 border-t border-slate-100">
+                        ${h.items.map(i => `${i.name} (${i.qty} ชิ้น)`).join(', ')}
                     </div>
                 </div>
             `).join('');
         }
 
-        // Html5-Qrcode Scanner Functions
+        function clearHistory() {
+            if (confirm('ต้องการล้างประวัติการขายทั้งหมดใช่หรือไม่?')) {
+                salesHistory = [];
+                saveData();
+                renderProfitAndHistory();
+            }
+        }
+
+        // Scanner Controls
         function stopAllScanners() {
             if (posScanner) {
                 posScanner.stop().catch(() => {}).finally(() => { posScanner = null; });
@@ -409,9 +459,7 @@
             });
         }
 
-        function stopPosScanner() {
-            stopAllScanners();
-        }
+        function stopPosScanner() { stopAllScanners(); }
 
         function startStockScanner() {
             stopAllScanners();
@@ -432,13 +480,11 @@
             });
         }
 
-        function stopStockScanner() {
-            stopAllScanners();
-        }
+        function stopStockScanner() { stopAllScanners(); }
 
         function syncData() {
             saveData();
-            alert('ซิงค์และบันทึกข้อมูลเรียบร้อยแล้ว!');
+            alert('บันทึกข้อมูลเรียบร้อยแล้ว!');
         }
 
         renderInventory();

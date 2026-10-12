@@ -8,26 +8,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- ZXing Barcode Scanner -->
-    <script src="https://unpkg.com/@zxing/library@latest"></script>
-    <style>
-        /* เส้นยิงบาร์โค้ดสีแดงขยับลงมา */
-        @keyframes scan {
-            0% { top: 10%; }
-            50% { top: 85%; }
-            100% { top: 10%; }
-        }
-        .laser-line {
-            position: absolute;
-            left: 5%;
-            width: 90%;
-            height: 3px;
-            background-color: #ef4444;
-            box-shadow: 0 0 8px #ef4444;
-            animation: scan 2s infinite ease-in-out;
-            z-index: 20;
-        }
-    </style>
+    <!-- Html5-Qrcode Library (สแกนบาร์โค้ดมือถือเสถียรที่สุด) -->
+    <script src="https://unpkg.com/html5-qrcode"></script>
 </head>
 <body class="bg-slate-100 min-h-screen text-slate-800 pb-20">
 
@@ -60,11 +42,9 @@
         <!-- TAB 1: POS (หน้าขายสินค้า) -->
         <section id="section-pos" class="space-y-4">
             <!-- Camera Scanner Area -->
-            <div id="pos-scanner-container" class="hidden bg-black rounded-lg overflow-hidden relative shadow-md h-56 border-2 border-indigo-500">
-                <video id="pos-video" class="w-full h-full object-cover" autoplay playsinline muted></video>
-                <div class="laser-line"></div>
-                <div class="absolute inset-0 border-2 border-dashed border-white/50 m-4 rounded pointer-events-none"></div>
-                <button onclick="stopPosScanner()" class="absolute top-2 right-2 bg-red-600 text-white px-3 py-1 rounded-full text-xs shadow z-30">
+            <div id="pos-scanner-container" class="hidden bg-black rounded-lg overflow-hidden relative shadow-md mb-2">
+                <div id="pos-reader" class="w-full"></div>
+                <button onclick="stopPosScanner()" class="absolute top-2 right-2 bg-red-600 text-white px-3 py-1 rounded-full text-xs shadow z-50">
                     ปิดกล้อง
                 </button>
             </div>
@@ -104,11 +84,9 @@
 
         <!-- TAB 2: STOCK (หน้าเพิ่มสต็อก) -->
         <section id="section-stock" class="space-y-4 hidden">
-            <div id="stock-scanner-container" class="hidden bg-black rounded-lg overflow-hidden relative shadow-md h-56 border-2 border-indigo-500">
-                <video id="stock-video" class="w-full h-full object-cover" autoplay playsinline muted></video>
-                <div class="laser-line"></div>
-                <div class="absolute inset-0 border-2 border-dashed border-white/50 m-4 rounded pointer-events-none"></div>
-                <button onclick="stopStockScanner()" class="absolute top-2 right-2 bg-red-600 text-white px-3 py-1 rounded-full text-xs shadow z-30">
+            <div id="stock-scanner-container" class="hidden bg-black rounded-lg overflow-hidden relative shadow-md mb-2">
+                <div id="stock-reader" class="w-full"></div>
+                <button onclick="stopStockScanner()" class="absolute top-2 right-2 bg-red-600 text-white px-3 py-1 rounded-full text-xs shadow z-50">
                     ปิดกล้อง
                 </button>
             </div>
@@ -177,8 +155,8 @@
         let inventory = JSON.parse(localStorage.getItem('fifo_inventory')) || [];
         let salesHistory = JSON.parse(localStorage.getItem('fifo_sales')) || [];
         let cart = [];
-        let codeReader = null;
-        let activeStream = null;
+        let posScanner = null;
+        let stockScanner = null;
 
         function saveData() {
             localStorage.setItem('fifo_inventory', JSON.stringify(inventory));
@@ -400,57 +378,34 @@
             `).join('');
         }
 
-        // Barcode Scanner Logic with Resolution Optimizations
-        function startScanner(videoId, containerId, onDetected) {
-            stopAllScanners();
-            document.getElementById(containerId).classList.remove('hidden');
-            codeReader = new ZXing.BrowserMultiFormatReader();
-
-            const constraints = {
-                video: {
-                    facingMode: "environment",
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 }
-                }
-            };
-
-            navigator.mediaDevices.getUserMedia(constraints)
-                .then(stream => {
-                    activeStream = stream;
-                    const videoElement = document.getElementById(videoId);
-                    videoElement.srcObject = stream;
-                    videoElement.play();
-
-                    codeReader.decodeFromVideoElement(videoElement, (result, err) => {
-                        if (result) {
-                            onDetected(result.text);
-                            stopAllScanners();
-                        }
-                    });
-                })
-                .catch(err => {
-                    alert('ไม่สามารถเปิดกล้องได้: ' + err);
-                    document.getElementById(containerId).classList.add('hidden');
-                });
-        }
-
+        // Html5-Qrcode Scanner Functions
         function stopAllScanners() {
-            if (codeReader) {
-                codeReader.reset();
-                codeReader = null;
+            if (posScanner) {
+                posScanner.stop().catch(() => {}).finally(() => { posScanner = null; });
             }
-            if (activeStream) {
-                activeStream.getTracks().forEach(track => track.stop());
-                activeStream = null;
+            if (stockScanner) {
+                stockScanner.stop().catch(() => {}).finally(() => { stockScanner = null; });
             }
             document.getElementById('pos-scanner-container').classList.add('hidden');
             document.getElementById('stock-scanner-container').classList.add('hidden');
         }
 
         function startPosScanner() {
-            startScanner('pos-video', 'pos-scanner-container', (text) => {
-                document.getElementById('pos-barcode').value = text;
-                addPosItem();
+            stopAllScanners();
+            document.getElementById('pos-scanner-container').classList.remove('hidden');
+            posScanner = new Html5Qrcode("pos-reader");
+            posScanner.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: { width: 250, height: 100 } },
+                (decodedText) => {
+                    document.getElementById('pos-barcode').value = decodedText;
+                    addPosItem();
+                    stopAllScanners();
+                },
+                (errorMessage) => {}
+            ).catch(err => {
+                alert("ไม่สามารถเปิดกล้องได้: " + err);
+                document.getElementById('pos-scanner-container').classList.add('hidden');
             });
         }
 
@@ -459,9 +414,21 @@
         }
 
         function startStockScanner() {
-            startScanner('stock-video', 'stock-scanner-container', (text) => {
-                document.getElementById('stock-barcode').value = text;
-                checkExistingBarcode(text);
+            stopAllScanners();
+            document.getElementById('stock-scanner-container').classList.remove('hidden');
+            stockScanner = new Html5Qrcode("stock-reader");
+            stockScanner.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: { width: 250, height: 100 } },
+                (decodedText) => {
+                    document.getElementById('stock-barcode').value = decodedText;
+                    checkExistingBarcode(decodedText);
+                    stopAllScanners();
+                },
+                (errorMessage) => {}
+            ).catch(err => {
+                alert("ไม่สามารถเปิดกล้องได้: " + err);
+                document.getElementById('stock-scanner-container').classList.add('hidden');
             });
         }
 
